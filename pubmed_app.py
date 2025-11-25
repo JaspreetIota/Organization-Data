@@ -1,68 +1,91 @@
 import streamlit as st
 import pandas as pd
-import plotly.express as px
 import os
 from PIL import Image
-from io import BytesIO
+import plotly.express as px
 
 EXCEL_PATH = "uat_issues.xlsx"
 
+# ----------------------------------------------------------
+# CLIENT STATUS COLUMNS (your exact column names)
+# ----------------------------------------------------------
+CLIENT_COLUMNS = [
+    "⭐Portfolio Demo",
+    "⭐Diabetes",
+    "⭐TMW",
+    "MDR",
+    "EDL",
+    "STF",
+    "IPRG Demo"
+]
 
-# -------------------------
-# Utility Functions
-# -------------------------
+
+# ----------------------------------------------------------
+# LOAD EXCEL (AUTO-DETECT SHEET NAMES)
+# ----------------------------------------------------------
 @st.cache_data(ttl=5)
 def load_excel():
-    """Loads Excel file and returns both sheets."""
-    df_main = pd.read_excel(EXCEL_PATH, sheet_name="uat_issues")
-    df_arch = pd.read_excel(EXCEL_PATH, sheet_name="Architecture_Issues")
+    """Load Excel safely and return both sheets."""
+    xls = pd.ExcelFile(EXCEL_PATH)
+
+    # Try exact names, fallback to first two sheets
+    sheet_names = xls.sheet_names
+
+    # MAIN SHEET
+    if "uat_issues" in sheet_names:
+        df_main = pd.read_excel(EXCEL_PATH, sheet_name="uat_issues")
+    else:
+        df_main = pd.read_excel(EXCEL_PATH, sheet_name=sheet_names[0])
+
+    # ARCHITECTURE SHEET
+    if "architecture_issues" in sheet_names:
+        df_arch = pd.read_excel(EXCEL_PATH, sheet_name="architecture_issues")
+    else:
+        df_arch = pd.read_excel(EXCEL_PATH, sheet_name=sheet_names[1])
+
     return df_main, df_arch
 
 
+# ----------------------------------------------------------
+# SAVE FUNCTION
+# ----------------------------------------------------------
 def save_excel(df_main, df_arch):
-    """Save updated data back to Excel."""
     with pd.ExcelWriter(EXCEL_PATH, engine='openpyxl') as writer:
-        df_main.to_excel(writer, sheet_name="UAT_Issues", index=False)
-        df_arch.to_excel(writer, sheet_name="Architecture_Issues", index=False)
+        df_main.to_excel(writer, sheet_name="uat_issues", index=False)
+        df_arch.to_excel(writer, sheet_name="architecture_issues", index=False)
 
 
-def get_file_timestamp():
-    """Returns last modified timestamp to auto-refresh."""
-    return os.path.getmtime(EXCEL_PATH)
-
-
-# -------------------------
-# Streamlit App Layout
-# -------------------------
+# ----------------------------------------------------------
+# BASIC PAGE CONFIG
+# ----------------------------------------------------------
 st.set_page_config(page_title="UAT Bug Tracker", layout="wide")
-
 st.title("🧪 UAT Bug & Issue Tracker")
 
 page = st.sidebar.radio(
     "Navigation",
-    ("📊 Dashboard", "📋 Editable Table – Main Issues", "🏗️ Architecture Issues")
+    ["📊 Dashboard", "📋 Editable Table – Main Issues", "🏗️ Architecture Issues"]
 )
 
-# Monitor file change
-st.sidebar.write("Excel last updated:", get_file_timestamp())
 
+# ----------------------------------------------------------
+# LOAD DATA
+# ----------------------------------------------------------
 df_main, df_arch = load_excel()
 
+# Ensure client columns exist
+client_cols = [c for c in CLIENT_COLUMNS if c in df_main.columns]
 
-# ============================================================
+
+# ==========================================================
 # PAGE 1 — DASHBOARD
-# ============================================================
+# ==========================================================
 if page == "📊 Dashboard":
+
     st.header("Interactive Dashboard")
 
-    # --- Filters ---
+    # ---------------- FILTERS ----------------
     type_filter = st.multiselect("Filter by Type", df_main["Type"].unique())
-    client_cols = [col for col in df_main.columns if col not in [
-        "SNo", "Date", "Repetitive Count", "Repetitive Dates",
-        "Type", "Issue", "Image", "Remarks", "Dev Status"
-    ]]
-
-    client_filter = st.multiselect("Filter by Client Status", client_cols)
+    client_filter = st.multiselect("Filter by Client (Resolved: Yes)", client_cols)
 
     filtered_df = df_main.copy()
 
@@ -72,12 +95,13 @@ if page == "📊 Dashboard":
     if client_filter:
         filtered_df = filtered_df[filtered_df[client_filter].eq("Yes").all(axis=1)]
 
-    # --- Charts ---
+    # ---------------- CHARTS ----------------
     col1, col2 = st.columns(2)
 
     with col1:
-        fig1 = px.histogram(filtered_df, x="Type", title="Issues by Type")
-        st.plotly_chart(fig1, use_container_width=True)
+        if "Type" in filtered_df.columns:
+            fig1 = px.histogram(filtered_df, x="Type", title="Issues by Type")
+            st.plotly_chart(fig1, use_container_width=True)
 
     with col2:
         if client_cols:
@@ -85,26 +109,33 @@ if page == "📊 Dashboard":
             fig2 = px.bar(mdf, title="Client-Wise Resolved Count")
             st.plotly_chart(fig2, use_container_width=True)
 
-    st.subheader("Complete Filtered Table")
-    st.dataframe(filtered_df)
+    # ---------------- TABLE ----------------
+    st.subheader("Filtered Issue List")
+    st.dataframe(filtered_df, use_container_width=True)
 
-    # Image Preview
-    st.subheader("Image Preview")
-    issue_id = st.number_input("Enter SNo to preview image:", min_value=1)
-    img_row = df_main[df_main["SNo"] == issue_id]
+    # ---------------- IMAGE PREVIEW ----------------
+    st.subheader("Image Preview by SNo")
 
-    if not img_row.empty and isinstance(img_row["Image"].iloc[0], str):
-        try:
-            img = Image.open(img_row["Image"].iloc[0])
-            st.image(img, width=600)
-        except:
-            st.warning("Image path not accessible.")
+    if "SNo" in df_main.columns:
+        issue_id = st.number_input("Enter SNo:", min_value=1, step=1)
+
+        img_row = df_main[df_main["SNo"] == issue_id]
+        if not img_row.empty:
+            img_path = img_row["Image"].iloc[0]
+            if isinstance(img_path, str) and os.path.exists(img_path):
+                try:
+                    img = Image.open(img_path)
+                    st.image(img, width=600)
+                except:
+                    st.error("Cannot open the image file.")
+            else:
+                st.warning("Image path not valid.")
 
 
-# ============================================================
-# PAGE 2 — MAIN SHEET EDITOR
-# ============================================================
-if page == "📋 Editable Table – Main Issues":
+# ==========================================================
+# PAGE 2 — EDIT MAIN ISSUES
+# ==========================================================
+elif page == "📋 Editable Table – Main Issues":
 
     st.header("Edit Main UAT Issues")
 
@@ -116,36 +147,34 @@ if page == "📋 Editable Table – Main Issues":
 
     if st.button("💾 Save Changes"):
         save_excel(edited_df, df_arch)
-        st.success("Excel updated successfully!")
+        st.success("Main UAT Issues Sheet Updated.")
 
-
-    # Download
     st.download_button(
-        "⬇️ Download Updated Excel",
+        "⬇ Download Excel File",
         data=open(EXCEL_PATH, "rb").read(),
         file_name="UAT_Issues_Updated.xlsx"
     )
 
 
-# ============================================================
-# PAGE 3 — ARCHITECTURE ISSUES
-# ============================================================
-if page == "🏗️ Architecture Issues":
+# ==========================================================
+# PAGE 3 — EDIT ARCHITECTURE ISSUES
+# ==========================================================
+elif page == "🏗️ Architecture Issues":
 
     st.header("Architecture Specific Issues")
 
-    edited_df = st.experimental_data_editor(
+    edited_arch = st.experimental_data_editor(
         df_arch,
         num_rows="dynamic",
         use_container_width=True
     )
 
-    if st.button("💾 Save Architecture Sheet"):
-        save_excel(df_main, edited_df)
-        st.success("Architecture Issues Updated!")
+    if st.button("💾 Save Architecture Changes"):
+        save_excel(df_main, edited_arch)
+        st.success("Architecture Sheet Updated.")
 
     st.download_button(
-        "⬇️ Download Architecture Excel",
+        "⬇ Download Updated Excel",
         data=open(EXCEL_PATH, "rb").read(),
-        file_name="Architecture_Issues.xlsx"
+        file_name="Architecture_Issues_Updated.xlsx"
     )
