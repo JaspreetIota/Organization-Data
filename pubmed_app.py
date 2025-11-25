@@ -57,12 +57,22 @@ os.makedirs(MEDIA_FOLDER, exist_ok=True)
 # Load data
 df_main, df_arch = load_excel()
 
-# Debug: Show columns loaded
-# st.write("Main columns:", df_main.columns.tolist())
-# st.write("Architecture columns:", df_arch.columns.tolist())
-
 # ------------------------ SIDEBAR ------------------------
 page = st.sidebar.radio("Select Page", ["📊 Dashboard", "📋 UAT Issues (Editable)", "🏗️ Architecture Issues (Editable)"])
+
+# --- CSS for sticky buttons at top ---
+st.markdown("""
+<style>
+.sticky-container {
+    position: sticky;
+    top: 0;
+    background-color: white;
+    padding: 10px 0;
+    z-index: 100;
+    border-bottom: 1px solid #ddd;
+}
+</style>
+""", unsafe_allow_html=True)
 
 # ------------------------ DASHBOARD ------------------------
 if page == "📊 Dashboard":
@@ -87,25 +97,6 @@ if page == "📊 Dashboard":
         # Column filter
         columns_to_show = st.multiselect("Select columns to display", df_filtered.columns.tolist(), default=df_filtered.columns.tolist())
         st.dataframe(df_filtered[columns_to_show], use_container_width=True)
-
-        # Media preview per row on-demand
-        st.subheader("Media Preview per Row")
-        for idx, row in df_filtered.iterrows():
-            with st.expander(f"S.No: {row.get('sno.', '')} | Issue: {row.get('issue', '')}"):
-                if "image" in row and pd.notna(row["image"]):
-                    for img in str(row["image"]).split("|"):
-                        img = img.strip()
-                        if img:
-                            img_path = os.path.join(MEDIA_FOLDER, img)
-                            if os.path.exists(img_path):
-                                st.image(img_path, caption=img, use_column_width=True)
-                if "video" in row and pd.notna(row["video"]):
-                    for vid in str(row["video"]).split("|"):
-                        vid = vid.strip()
-                        if vid:
-                            vid_path = os.path.join(MEDIA_FOLDER, vid)
-                            if os.path.exists(vid_path):
-                                st.video(vid_path)
 
         # Predefined Charts
         st.subheader("Predefined Charts")
@@ -132,6 +123,28 @@ if page == "📊 Dashboard":
             except Exception as e:
                 st.warning(f"Cannot generate chart for column '{chart_col}': {e}")
 
+        # Media preview in separate expandable section
+        with st.expander("🖼️📹 Expand Media Preview Section"):
+            if df_filtered.empty:
+                st.info("No records to show media.")
+            else:
+                for idx, row in df_filtered.iterrows():
+                    with st.expander(f"S.No: {row.get('sno.', '')} | Issue: {row.get('issue', '')}"):
+                        if "image" in row and pd.notna(row["image"]):
+                            for img in str(row["image"]).split("|"):
+                                img = img.strip()
+                                if img:
+                                    img_path = os.path.join(MEDIA_FOLDER, img)
+                                    if os.path.exists(img_path):
+                                        st.image(img_path, caption=img, use_column_width=True)
+                        if "video" in row and pd.notna(row["video"]):
+                            for vid in str(row["video"]).split("|"):
+                                vid = vid.strip()
+                                if vid:
+                                    vid_path = os.path.join(MEDIA_FOLDER, vid)
+                                    if os.path.exists(vid_path):
+                                        st.video(vid_path)
+
     else:  # Architecture Issues Dashboard
         st.header("🏗️ Architecture Issues Dashboard")
         type_options = df_arch["type"].dropna().unique().tolist() if "type" in df_arch.columns else []
@@ -147,25 +160,6 @@ if page == "📊 Dashboard":
 
         columns_to_show = st.multiselect("Select columns to display", df_filtered.columns.tolist(), default=df_filtered.columns.tolist())
         st.dataframe(df_filtered[columns_to_show], use_container_width=True)
-
-        # Media preview per row on-demand
-        st.subheader("Media Preview per Row")
-        for idx, row in df_filtered.iterrows():
-            with st.expander(f"S.No: {row.get('sno.', '')} | Issue: {row.get('issue', '')}"):
-                if "image" in row and pd.notna(row["image"]):
-                    for img in str(row["image"]).split("|"):
-                        img = img.strip()
-                        if img:
-                            img_path = os.path.join(MEDIA_FOLDER, img)
-                            if os.path.exists(img_path):
-                                st.image(img_path, caption=img, use_column_width=True)
-                if "video" in row and pd.notna(row["video"]):
-                    for vid in str(row["video"]).split("|"):
-                        vid = vid.strip()
-                        if vid:
-                            vid_path = os.path.join(MEDIA_FOLDER, vid)
-                            if os.path.exists(vid_path):
-                                st.video(vid_path)
 
         # Predefined Charts
         st.subheader("Predefined Charts")
@@ -198,10 +192,44 @@ if page == "📊 Dashboard":
             except Exception as e:
                 st.warning(f"Cannot generate chart for column '{chart_col}': {e}")
 
+        # Media preview in separate expandable section
+        with st.expander("🖼️📹 Expand Media Preview Section"):
+            if df_filtered.empty:
+                st.info("No records to show media.")
+            else:
+                for idx, row in df_filtered.iterrows():
+                    with st.expander(f"S.No: {row.get('sno.', '')} | Issue: {row.get('issue', '')}"):
+                        if "image" in row and pd.notna(row["image"]):
+                            for img in str(row["image"]).split("|"):
+                                img = img.strip()
+                                if img:
+                                    img_path = os.path.join(MEDIA_FOLDER, img)
+                                    if os.path.exists(img_path):
+                                        st.image(img_path, caption=img, use_column_width=True)
+                        if "video" in row and pd.notna(row["video"]):
+                            for vid in str(row["video"]).split("|"):
+                                vid = vid.strip()
+                                if vid:
+                                    vid_path = os.path.join(MEDIA_FOLDER, vid)
+                                    if os.path.exists(vid_path):
+                                        st.video(vid_path)
+
 # ------------------------ EDITABLE SHEETS ------------------------
 elif page == "📋 UAT Issues (Editable)":
     st.header("📋 Edit UAT Issues")
-    edited_main = st.experimental_data_editor(df_main, num_rows="dynamic", use_container_width=True)
+
+    # Sticky save/download container at top
+    with st.container():
+        st.markdown('<div class="sticky-container">', unsafe_allow_html=True)
+        edited_main = st.experimental_data_editor(df_main, num_rows="dynamic", use_container_width=True)
+        col1, col2 = st.columns([1,1])
+        with col1:
+            if st.button("💾 Save UAT Sheet"):
+                save_excel(edited_main, df_arch)
+                st.success("UAT Issues saved.")
+        with col2:
+            st.download_button("⬇ Download Excel", data=open(EXCEL_PATH, "rb").read(), file_name="uat_issues_updated.xlsx")
+        st.markdown('</div>', unsafe_allow_html=True)
 
     st.subheader("Upload Media for Rows")
     for idx in edited_main.index:
@@ -219,15 +247,21 @@ elif page == "📋 UAT Issues (Editable)":
                 f.write(vid_file.getbuffer())
             edited_main.at[idx, "video"] = vid_file.name
 
-    if st.button("💾 Save UAT Sheet"):
-        save_excel(edited_main, df_arch)
-        st.success("UAT Issues saved.")
-
-    st.download_button("⬇ Download Excel", data=open(EXCEL_PATH, "rb").read(), file_name="uat_issues_updated.xlsx")
-
 elif page == "🏗️ Architecture Issues (Editable)":
     st.header("🏗️ Edit Architecture Issues")
-    edited_arch = st.experimental_data_editor(df_arch, num_rows="dynamic", use_container_width=True)
+
+    # Sticky save/download container at top
+    with st.container():
+        st.markdown('<div class="sticky-container">', unsafe_allow_html=True)
+        edited_arch = st.experimental_data_editor(df_arch, num_rows="dynamic", use_container_width=True)
+        col1, col2 = st.columns([1,1])
+        with col1:
+            if st.button("💾 Save Architecture Sheet"):
+                save_excel(df_main, edited_arch)
+                st.success("Architecture Issues saved.")
+        with col2:
+            st.download_button("⬇ Download Excel", data=open(EXCEL_PATH, "rb").read(), file_name="architecture_issues_updated.xlsx")
+        st.markdown('</div>', unsafe_allow_html=True)
 
     st.subheader("Upload Media for Rows")
     for idx in edited_arch.index:
@@ -244,9 +278,3 @@ elif page == "🏗️ Architecture Issues (Editable)":
             with open(path, "wb") as f:
                 f.write(vid_file.getbuffer())
             edited_arch.at[idx, "video"] = vid_file.name
-
-    if st.button("💾 Save Architecture Sheet"):
-        save_excel(df_main, edited_arch)
-        st.success("Architecture Issues saved.")
-
-    st.download_button("⬇ Download Excel", data=open(EXCEL_PATH, "rb").read(), file_name="architecture_issues_updated.xlsx")
