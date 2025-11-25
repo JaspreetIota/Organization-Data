@@ -1,12 +1,11 @@
 import streamlit as st
 import pandas as pd
 import os
-from PIL import Image
+from io import BytesIO
 import plotly.express as px
 
 EXCEL_PATH = "uat_issues.xlsx"
 
-# Client columns
 CLIENT_COLUMNS = ["Portfolio Demo","Diabetes","TMW","MDR","EDL","STF","IPRG Demo"]
 
 # ------------------------ LOAD EXCEL ------------------------
@@ -19,26 +18,23 @@ def load_excel():
     xls = pd.ExcelFile(EXCEL_PATH)
     sheet_names = [s.lower() for s in xls.sheet_names]
 
-    # Load UAT issues
     if "uat_issues" in sheet_names:
         df_main = pd.read_excel(EXCEL_PATH, sheet_name=xls.sheet_names[sheet_names.index("uat_issues")])
     else:
         df_main = pd.DataFrame(columns=[
             "Sno.", "Date", "Repetitive Count", "Repetitive Dates", "Type", "Issue",
             "Portfolio Demo", "Diabetes", "TMW", "MDR", "EDL", "STF", "IPRG Demo",
-            "image", "Remarks", "Dev Status"
+            "image", "remarks", "dev status", "video"
         ])
 
-    # Load Architecture issues
     if "architecture_issues" in sheet_names:
         df_arch = pd.read_excel(EXCEL_PATH, sheet_name=xls.sheet_names[sheet_names.index("architecture_issues")])
     else:
         df_arch = pd.DataFrame(columns=[
             "Sno.", "Date", "Repetitive Count", "Repetitive Dates", "Type", "Issue",
-            "Status", "image", "Remarks", "Dev Status"
+            "Status", "image", "remarks", "dev status", "video"
         ])
 
-    # Strip spaces from headers
     df_main.columns = df_main.columns.str.strip()
     df_arch.columns = df_arch.columns.str.strip()
 
@@ -52,7 +48,7 @@ def save_excel(df_main, df_arch):
 
 # ------------------------ CONFIG ------------------------
 st.set_page_config(page_title="UAT & Architecture Bug Tracker", layout="wide")
-st.title("🧪 Bug Tracker Dashboard")
+st.title("🧪 Bug Tracker Dashboard with Media Uploads")
 
 # Load data
 df_main, df_arch = load_excel()
@@ -80,9 +76,30 @@ if page == "📊 Dashboard":
         if selected_clients:
             df_filtered = df_filtered[df_filtered[selected_clients].eq("Yes").all(axis=1)]
 
-        # Column filter for table
+        # Column filter
         columns_to_show = st.multiselect("Select columns to display", df_filtered.columns.tolist(), default=df_filtered.columns.tolist())
         st.dataframe(df_filtered[columns_to_show], use_container_width=True)
+
+        # Show images and videos inline
+        st.subheader("Media Previews")
+        for idx, row in df_filtered.iterrows():
+            st.markdown(f"**S.No:** {row.get('Sno.', '')}  |  **Issue:** {row.get('Issue', '')}")
+            
+            # Images
+            if "image" in row and pd.notna(row["image"]):
+                images = str(row["image"]).split("|")
+                for img in images:
+                    uploaded_img = img.strip()
+                    if uploaded_img:
+                        st.image(uploaded_img, caption="Screenshot", use_column_width=True)
+
+            # Videos
+            if "video" in row and pd.notna(row["video"]):
+                videos = str(row["video"]).split("|")
+                for vid in videos:
+                    uploaded_vid = vid.strip()
+                    if uploaded_vid:
+                        st.video(uploaded_vid)
 
         # Dynamic Charts
         st.subheader("Charts")
@@ -115,6 +132,25 @@ if page == "📊 Dashboard":
         columns_to_show = st.multiselect("Select columns to display", df_filtered.columns.tolist(), default=df_filtered.columns.tolist())
         st.dataframe(df_filtered[columns_to_show], use_container_width=True)
 
+        # Show media inline
+        st.subheader("Media Previews")
+        for idx, row in df_filtered.iterrows():
+            st.markdown(f"**S.No:** {row.get('Sno.', '')}  |  **Issue:** {row.get('Issue', '')}")
+            # Images
+            if "image" in row and pd.notna(row["image"]):
+                images = str(row["image"]).split("|")
+                for img in images:
+                    uploaded_img = img.strip()
+                    if uploaded_img:
+                        st.image(uploaded_img, caption="Screenshot", use_column_width=True)
+            # Videos
+            if "video" in row and pd.notna(row["video"]):
+                videos = str(row["video"]).split("|")
+                for vid in videos:
+                    uploaded_vid = vid.strip()
+                    if uploaded_vid:
+                        st.video(uploaded_vid)
+
         # Dynamic Charts
         st.subheader("Charts")
         chart_column = st.selectbox("Select column for chart", df_filtered.columns.tolist())
@@ -131,16 +167,40 @@ if page == "📊 Dashboard":
 # ------------------------ EDITABLE TABLES ------------------------
 elif page == "📋 UAT Issues (Editable)":
     st.header("📋 Edit UAT Issues")
+    
+    # Add image/video uploader per new row
+    uploaded_img = st.file_uploader("Upload Image", type=["png","jpg","jpeg"])
+    uploaded_vid = st.file_uploader("Upload Video", type=["mp4","mov"])
+
     edited_main = st.experimental_data_editor(df_main, num_rows="dynamic", use_container_width=True)
+
+    # Append uploaded media
+    if uploaded_img:
+        edited_main.at[edited_main.index[-1], "image"] = uploaded_img
+    if uploaded_vid:
+        edited_main.at[edited_main.index[-1], "video"] = uploaded_vid
+
     if st.button("💾 Save UAT Sheet"):
         save_excel(edited_main, df_arch)
         st.success("UAT Issues saved.")
+
     st.download_button("⬇ Download Excel", data=open(EXCEL_PATH, "rb").read(), file_name="uat_issues_updated.xlsx")
 
 elif page == "🏗️ Architecture Issues (Editable)":
     st.header("🏗️ Edit Architecture Issues")
+    
+    uploaded_img = st.file_uploader("Upload Image", type=["png","jpg","jpeg"], key="arch_img")
+    uploaded_vid = st.file_uploader("Upload Video", type=["mp4","mov"], key="arch_vid")
+
     edited_arch = st.experimental_data_editor(df_arch, num_rows="dynamic", use_container_width=True)
+
+    if uploaded_img:
+        edited_arch.at[edited_arch.index[-1], "image"] = uploaded_img
+    if uploaded_vid:
+        edited_arch.at[edited_arch.index[-1], "video"] = uploaded_vid
+
     if st.button("💾 Save Architecture Sheet"):
         save_excel(df_main, edited_arch)
         st.success("Architecture Issues saved.")
+
     st.download_button("⬇ Download Excel", data=open(EXCEL_PATH, "rb").read(), file_name="architecture_issues_updated.xlsx")
