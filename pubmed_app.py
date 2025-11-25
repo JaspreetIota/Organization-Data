@@ -26,19 +26,21 @@ CLIENT_COLUMNS = [
 @st.cache_data(ttl=5)
 def load_excel():
     xls = pd.ExcelFile(EXCEL_PATH)
-    sheet_names = xls.sheet_names
+    sheet_names = [s.lower() for s in xls.sheet_names]
 
-    # MAIN UAT sheet
     if "uat_issues" in sheet_names:
-        df_main = pd.read_excel(EXCEL_PATH, sheet_name="uat_issues")
+        df_main = pd.read_excel(EXCEL_PATH, sheet_name=xls.sheet_names[sheet_names.index("uat_issues")])
     else:
-        df_main = pd.read_excel(EXCEL_PATH, sheet_name=sheet_names[0])
+        df_main = pd.DataFrame()  # empty fallback
 
-    # ARCHITECTURE sheet
     if "architecture_issues" in sheet_names:
-        df_arch = pd.read_excel(EXCEL_PATH, sheet_name="architecture_issues")
+        df_arch = pd.read_excel(EXCEL_PATH, sheet_name=xls.sheet_names[sheet_names.index("architecture_issues")])
     else:
-        df_arch = pd.read_excel(EXCEL_PATH, sheet_name=sheet_names[1])
+        df_arch = pd.DataFrame()  # empty fallback
+
+    # Strip spaces from headers
+    df_main.columns = df_main.columns.str.strip()
+    df_arch.columns = df_arch.columns.str.strip()
 
     return df_main, df_arch
 
