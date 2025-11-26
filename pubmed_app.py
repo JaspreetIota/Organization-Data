@@ -4,29 +4,6 @@ import os
 from io import BytesIO
 import plotly.express as px
 
-# 1️⃣ Page config must come first
-st.set_page_config(page_title="UAT & Architecture Bug Tracker", layout="wide")
-
-# 2️⃣ Theme toggle (before anything else)
-if "theme" not in st.session_state:
-    st.session_state.theme = "light"
-
-theme_choice = st.sidebar.radio("🌗 Select Theme", ["Light", "Dark"],
-                                index=0 if st.session_state.theme=="light" else 1)
-st.session_state.theme = theme_choice
-
-if st.session_state.theme == "dark":
-    st.markdown("""
-        <style>
-        .reportview-container {background-color: #0E1117; color: #FAFAFA;}
-        .stDataFrame div.row_heading, .stDataFrame th, .stDataFrame td {color: #FAFAFA;}
-        .streamlit-expanderHeader, h1, h2, h3, h4, h5, h6 {color: #FAFAFA;}
-        </style>
-        """, unsafe_allow_html=True)
-
-# 3️⃣ Now continue with the rest of your app
-st.title("🧪 Bug Tracker Dashboard")
-
 EXCEL_PATH = "uat_issues.xlsx"
 MEDIA_FOLDER = "media"
 FEEDBACK_PATH = "user_feedback.xlsx"
