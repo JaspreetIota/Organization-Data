@@ -6,166 +6,218 @@ import plotly.express as px
 
 EXCEL_PATH = "uat_issues.xlsx"
 MEDIA_FOLDER = "media"
-FEEDBACK_FILE = "user_feedback.xlsx"
+FEEDBACK_PATH = "user_feedback.xlsx"
+
 CLIENT_COLUMNS = ["Portfolio Demo", "Diabetes", "TMW", "MDR", "EDL", "STF", "IPRG Demo"]
 
-st.set_page_config(page_title="UAT & Architecture Bug Tracker", layout="wide")
+# ------------------------ UTILITIES ------------------------
 os.makedirs(MEDIA_FOLDER, exist_ok=True)
 
-# ------------------------ LOAD / INIT DATA ------------------------
-def load_or_init_excel():
-    if "df_main" not in st.session_state:
-        if os.path.exists(EXCEL_PATH):
-            xls = pd.ExcelFile(EXCEL_PATH)
-            df_main = pd.read_excel(EXCEL_PATH, sheet_name="uat_issues") if "uat_issues" in [s.lower() for s in xls.sheet_names] else pd.DataFrame()
-            df_arch = pd.read_excel(EXCEL_PATH, sheet_name="architecture_issues") if "architecture_issues" in [s.lower() for s in xls.sheet_names] else pd.DataFrame()
-        else:
-            df_main = pd.DataFrame(columns=["Sno.", "Date", "Repetitive Count", "Repetitive Dates", "Type", "Issue", *CLIENT_COLUMNS, "image", "video", "remarks", "dev status"])
-            df_arch = pd.DataFrame(columns=["Sno.", "Date", "Repetitive Count", "Repetitive Dates", "Type", "Issue", "Status", "image", "video", "remarks", "dev status"])
-        for df in [df_main, df_arch]:
-            for col in ["image", "video"]:
-                if col not in df.columns:
-                    df[col] = ""
-        st.session_state.df_main = df_main
-        st.session_state.df_arch = df_arch
+@st.cache_data(ttl=5)
+def load_excel():
+    if not os.path.exists(EXCEL_PATH):
+        st.warning(f"Excel file {EXCEL_PATH} not found. Creating empty sheets.")
+        df_main = pd.DataFrame(columns=["Sno.","Date","Repetitive Count","Repetitive Dates",
+                                        "Type","Issue", *CLIENT_COLUMNS, "image","video","remarks","dev status"])
+        df_arch = pd.DataFrame(columns=["Sno.","Date","Repetitive Count","Repetitive Dates",
+                                        "Type","Issue","Status","image","video","remarks","dev status"])
+        return df_main, df_arch
+    xls = pd.ExcelFile(EXCEL_PATH)
+    sheet_names = [s.lower() for s in xls.sheet_names]
+    if "uat_issues" in sheet_names:
+        df_main = pd.read_excel(EXCEL_PATH, sheet_name=xls.sheet_names[sheet_names.index("uat_issues")])
+    else:
+        df_main = pd.DataFrame(columns=["Sno.","Date","Repetitive Count","Repetitive Dates",
+                                        "Type","Issue", *CLIENT_COLUMNS, "image","video","remarks","dev status"])
+    if "architecture_issues" in sheet_names:
+        df_arch = pd.read_excel(EXCEL_PATH, sheet_name=xls.sheet_names[sheet_names.index("architecture_issues")])
+    else:
+        df_arch = pd.DataFrame(columns=["Sno.","Date","Repetitive Count","Repetitive Dates",
+                                        "Type","Issue","Status","image","video","remarks","dev status"])
+    df_main.columns = df_main.columns.str.strip()
+    df_arch.columns = df_arch.columns.str.strip()
+    return df_main, df_arch
 
-    if "df_feedback" not in st.session_state:
-        if os.path.exists(FEEDBACK_FILE):
-            st.session_state.df_feedback = pd.read_excel(FEEDBACK_FILE)
-        else:
-            st.session_state.df_feedback = pd.DataFrame(columns=["Timestamp","User","Feedback","image","video"])
-
-load_or_init_excel()
-
-# ------------------------ SAVE FUNCTIONS ------------------------
-def save_excel():
+def save_excel(df_main, df_arch):
     with pd.ExcelWriter(EXCEL_PATH, engine="openpyxl") as writer:
-        st.session_state.df_main.to_excel(writer, sheet_name="uat_issues", index=False)
-        st.session_state.df_arch.to_excel(writer, sheet_name="architecture_issues", index=False)
+        df_main.to_excel(writer, sheet_name="uat_issues", index=False)
+        df_arch.to_excel(writer, sheet_name="architecture_issues", index=False)
 
-def save_feedback():
-    st.session_state.df_feedback.to_excel(FEEDBACK_FILE, index=False)
+def load_feedback():
+    if os.path.exists(FEEDBACK_PATH):
+        return pd.read_excel(FEEDBACK_PATH)
+    else:
+        return pd.DataFrame(columns=["Name","Email","Feedback","Date"])
 
-# ------------------------ SIDEBAR ------------------------
-page = st.sidebar.radio("Select Page", ["📊 Dashboard", "📋 UAT Issues (Editable)", "🏗️ Architecture Issues (Editable)", "📝 User Feedback"])
+def save_feedback(df_fb):
+    df_fb.to_excel(FEEDBACK_PATH, index=False)
+
+# ------------------------ APP CONFIG ------------------------
+st.set_page_config(page_title="UAT & Architecture Bug Tracker", layout="wide")
+st.title("🧪 Bug Tracker Dashboard with Media Uploads & Feedbacks")
+
+df_main, df_arch = load_excel()
+df_feedback = load_feedback()
+
+page = st.sidebar.radio("Select Page", ["📊 Dashboard", "📋 UAT Issues (Editable)", "🏗️ Architecture Issues (Editable)", "✉️ User Feedback"])
 
 # ------------------------ DASHBOARD ------------------------
 if page == "📊 Dashboard":
-    st.title("📊 Bug Tracker Dashboard")
-    dashboard_type = st.radio("Select Dashboard", ["UAT Issues", "Architecture Issues"])
-    df = st.session_state.df_main if dashboard_type == "UAT Issues" else st.session_state.df_arch
+    dashboard_type = st.radio("Choose Dashboard", ["UAT Issues", "Architecture Issues"])
 
-    if df.empty:
-        st.warning("No data available.")
-    else:
+    if dashboard_type == "UAT Issues":
+        st.header("📊 UAT Issues Dashboard")
+        df = df_main.copy()
         # Filters
-        if "Type" in df.columns:
-            type_options = df["Type"].dropna().unique().tolist()
-            selected_types = st.multiselect("Filter by Type", type_options, default=type_options)
-            df = df[df["Type"].isin(selected_types)] if selected_types else df
-        if dashboard_type=="UAT Issues":
-            client_options = [c for c in CLIENT_COLUMNS if c in df.columns]
-            selected_clients = st.multiselect("Filter by Resolved Clients", client_options, default=client_options)
-            if selected_clients:
-                df = df[df[selected_clients].eq("Yes").all(axis=1)]
-        elif dashboard_type=="Architecture Issues" and "Status" in df.columns:
-            status_options = df["Status"].dropna().unique().tolist()
-            selected_status = st.multiselect("Filter by Status", status_options, default=status_options)
-            if selected_status:
-                df = df[df["Status"].isin(selected_status)]
+        type_options = df["Type"].dropna().unique().tolist() if "Type" in df.columns else []
+        selected_types = st.multiselect("Filter by Type", type_options, default=type_options)
+        client_options = [c for c in CLIENT_COLUMNS if c in df.columns]
+        selected_clients = st.multiselect("Filter by Resolved Clients", client_options, default=client_options)
 
-        # Show table
-        st.dataframe(df, use_container_width=True)
+        if selected_types:
+            df = df[df["Type"].isin(selected_types)]
+        if selected_clients:
+            df = df[df[selected_clients].eq("Yes").all(axis=1)]
 
-        # Media Viewer
-        with st.expander("📁 Expandable Media Viewer"):
-            for idx, row in df.iterrows():
-                st.markdown(f"**S.No: {row.get('Sno.', '')} | Issue: {row.get('Issue', '')}**")
-                if pd.notna(row.get("image")) and row.get("image") != "":
-                    for img in str(row["image"]).split("|"):
-                        img_path = os.path.join(MEDIA_FOLDER, img.strip())
-                        if os.path.exists(img_path):
-                            st.image(img_path, caption=img, use_column_width=True)
-                if pd.notna(row.get("video")) and row.get("video") != "":
-                    for vid in str(row["video"]).split("|"):
-                        vid_path = os.path.join(MEDIA_FOLDER, vid.strip())
-                        if os.path.exists(vid_path):
-                            st.video(vid_path)
+    else:
+        st.header("🏗️ Architecture Issues Dashboard")
+        df = df_arch.copy()
+        type_options = df["Type"].dropna().unique().tolist() if "Type" in df.columns else []
+        selected_types = st.multiselect("Filter by Type", type_options, default=type_options)
+        status_options = df["Status"].dropna().unique().tolist() if "Status" in df.columns else []
+        selected_status = st.multiselect("Filter by Status", status_options, default=status_options)
+        if selected_types:
+            df = df[df["Type"].isin(selected_types)]
+        if selected_status:
+            df = df[df["Status"].isin(selected_status)]
 
-        # Predefined Charts
-        st.subheader("Predefined Charts")
-        if "Type" in df.columns:
-            type_counts = df["Type"].value_counts().reset_index()
-            type_counts.columns = ["Type","Count"]
-            st.plotly_chart(px.bar(type_counts,x="Type",y="Count",title="Issues by Type"), use_container_width=True)
-        if dashboard_type=="Architecture Issues" and "Status" in df.columns:
-            status_counts = df["Status"].value_counts().reset_index()
-            status_counts.columns = ["Status","Count"]
-            st.plotly_chart(px.pie(status_counts,names="Status",values="Count",title="Status Distribution"), use_container_width=True)
+    # Column selection
+    columns_to_show = st.multiselect("Select columns to display", df.columns.tolist(), default=df.columns.tolist())
+    df_display = df[columns_to_show] if columns_to_show else df
+    st.dataframe(df_display, use_container_width=True)
 
-# ------------------------ EDITABLE UAT / ARCH ------------------------
-elif page in ["📋 UAT Issues (Editable)", "🏗️ Architecture Issues (Editable)"]:
-    is_uat = page=="📋 UAT Issues (Editable)"
-    df_name = "df_main" if is_uat else "df_arch"
-    df = st.session_state[df_name]
+    # Media Viewer
+    with st.expander("📂 Media Viewer (Expand to see all images/videos)"):
+        for idx, row in df.iterrows():
+            title = f"S.No: {row.get('Sno.', '')} | Issue: {row.get('Issue','')}"
+            st.markdown(f"**{title}**")
+            # Images
+            images = list(set(str(row.get("image","")).split("|")))
+            for img in images:
+                img = img.strip()
+                if img:
+                    img_path = os.path.join(MEDIA_FOLDER, img)
+                    if os.path.exists(img_path):
+                        st.image(img_path, caption=img, use_column_width=True)
+            # Videos
+            videos = list(set(str(row.get("video","")).split("|")))
+            for vid in videos:
+                vid = vid.strip()
+                if vid:
+                    vid_path = os.path.join(MEDIA_FOLDER, vid)
+                    if os.path.exists(vid_path):
+                        st.video(vid_path)
 
-    st.title(f"{page}")
+    # Predefined charts
+    st.subheader("Predefined Charts")
+    if "Type" in df.columns and not df.empty:
+        type_counts = df['Type'].value_counts().reset_index()
+        type_counts.columns = ['Type','Count']
+        fig = px.bar(type_counts, x='Type', y='Count', title='Issues by Type')
+        st.plotly_chart(fig, use_container_width=True)
+    if "Status" in df.columns and "Status" in df.columns and not df.empty:
+        status_counts = df['Status'].value_counts().reset_index()
+        status_counts.columns = ['Status','Count']
+        fig = px.pie(status_counts, names='Status', values='Count', title='Status Counts')
+        st.plotly_chart(fig, use_container_width=True)
 
-    # Sticky Save & Download
-    col1,col2 = st.columns([1,1])
-    with col1:
-        if st.button("💾 Save Sheet"):
-            save_excel()
-            st.success("Saved!")
-    with col2:
-        st.download_button("⬇ Download Excel", data=open(EXCEL_PATH,"rb").read(), file_name=f"{df_name}_updated.xlsx")
+    # Custom Charts
+    st.subheader("Custom Chart")
+    chart_col = st.selectbox("Select column for chart", df.columns.tolist(), key=f"{dashboard_type}_chart_col")
+    chart_type = st.selectbox("Select chart type", ["Bar","Pie","Histogram"], key=f"{dashboard_type}_chart_type")
+    if chart_col:
+        try:
+            if chart_type == "Bar":
+                fig = px.bar(df, x=chart_col, title=f"Bar Chart: {chart_col}")
+            elif chart_type == "Pie":
+                fig = px.pie(df, names=chart_col, title=f"Pie Chart: {chart_col}")
+            elif chart_type == "Histogram":
+                fig = px.histogram(df, x=chart_col, title=f"Histogram: {chart_col}")
+            st.plotly_chart(fig, use_container_width=True)
+        except Exception as e:
+            st.warning(f"Cannot generate chart for column '{chart_col}': {e}")
 
-    # Editable table
-    edited = st.experimental_data_editor(df, num_rows="dynamic", use_container_width=True)
-    st.session_state[df_name] = edited.copy()
-    save_excel()  # Auto-save after edits
+# ------------------------ EDITABLE SHEETS ------------------------
+elif page == "📋 UAT Issues (Editable)":
+    st.header("📋 Edit UAT Issues")
+    st.markdown("💾 **Save automatically** on any edit or media upload.")
+    edited_main = st.experimental_data_editor(df_main, num_rows="dynamic", use_container_width=True)
 
-    # Upload media per row
-    st.subheader("Upload Media per Row")
-    for idx in edited.index:
-        st.markdown(f"**Row {idx+1}: {edited.at[idx,'Issue']}**")
-        img_file = st.file_uploader(f"Image for row {idx+1}", type=["png","jpg","jpeg"], key=f"{df_name}_img_{idx}")
-        vid_file = st.file_uploader(f"Video for row {idx+1}", type=["mp4","mov"], key=f"{df_name}_vid_{idx}")
+    for idx in edited_main.index:
+        st.markdown(f"**Row {idx+1}: {edited_main.at[idx,'Issue']}**")
+        img_file = st.file_uploader(f"Upload Image for row {idx+1}", type=["png","jpg","jpeg"], key=f"img_{idx}")
+        vid_file = st.file_uploader(f"Upload Video for row {idx+1}", type=["mp4","mov"], key=f"vid_{idx}")
+        # Image handling
         if img_file:
-            path = os.path.join(MEDIA_FOLDER,img_file.name)
-            with open(path,"wb") as f: f.write(img_file.getbuffer())
-            current = edited.at[idx,"image"]
-            edited.at[idx,"image"] = f"{current}|{img_file.name}" if current else img_file.name
+            path = os.path.join(MEDIA_FOLDER, img_file.name)
+            with open(path,"wb") as f:
+                f.write(img_file.getbuffer())
+            current_imgs = str(edited_main.at[idx,"image"]) if pd.notna(edited_main.at[idx,"image"]) else ""
+            imgs = list(set(current_imgs.split("|") + [img_file.name]))
+            edited_main.at[idx,"image"] = "|".join([i for i in imgs if i])
+        # Video handling
         if vid_file:
-            path = os.path.join(MEDIA_FOLDER,vid_file.name)
-            with open(path,"wb") as f: f.write(vid_file.getbuffer())
-            current = edited.at[idx,"video"]
-            edited.at[idx,"video"] = f"{current}|{vid_file.name}" if current else vid_file.name
-        st.session_state[df_name] = edited.copy()
-        save_excel()  # Auto-save
+            path = os.path.join(MEDIA_FOLDER, vid_file.name)
+            with open(path,"wb") as f:
+                f.write(vid_file.getbuffer())
+            current_vids = str(edited_main.at[idx,"video"]) if pd.notna(edited_main.at[idx,"video"]) else ""
+            vids = list(set(current_vids.split("|") + [vid_file.name]))
+            edited_main.at[idx,"video"] = "|".join([v for v in vids if v])
+
+    save_excel(edited_main, df_arch)
+    st.success("UAT Issues saved permanently.")
+    st.download_button("⬇ Download UAT Excel", data=open(EXCEL_PATH,"rb").read(), file_name="uat_issues_updated.xlsx")
+
+elif page == "🏗️ Architecture Issues (Editable)":
+    st.header("🏗️ Edit Architecture Issues")
+    st.markdown("💾 **Save automatically** on any edit or media upload.")
+    edited_arch = st.experimental_data_editor(df_arch, num_rows="dynamic", use_container_width=True)
+
+    for idx in edited_arch.index:
+        st.markdown(f"**Row {idx+1}: {edited_arch.at[idx,'Issue']}**")
+        img_file = st.file_uploader(f"Upload Image for row {idx+1}", type=["png","jpg","jpeg"], key=f"arch_img_{idx}")
+        vid_file = st.file_uploader(f"Upload Video for row {idx+1}", type=["mp4","mov"], key=f"arch_vid_{idx}")
+        if img_file:
+            path = os.path.join(MEDIA_FOLDER, img_file.name)
+            with open(path,"wb") as f:
+                f.write(img_file.getbuffer())
+            current_imgs = str(edited_arch.at[idx,"image"]) if pd.notna(edited_arch.at[idx,"image"]) else ""
+            imgs = list(set(current_imgs.split("|") + [img_file.name]))
+            edited_arch.at[idx,"image"] = "|".join([i for i in imgs if i])
+        if vid_file:
+            path = os.path.join(MEDIA_FOLDER, vid_file.name)
+            with open(path,"wb") as f:
+                f.write(vid_file.getbuffer())
+            current_vids = str(edited_arch.at[idx,"video"]) if pd.notna(edited_arch.at[idx,"video"]) else ""
+            vids = list(set(current_vids.split("|") + [vid_file.name]))
+            edited_arch.at[idx,"video"] = "|".join([v for v in vids if v])
+
+    save_excel(df_main, edited_arch)
+    st.success("Architecture Issues saved permanently.")
+    st.download_button("⬇ Download Architecture Excel", data=open(EXCEL_PATH,"rb").read(), file_name="architecture_issues_updated.xlsx")
 
 # ------------------------ USER FEEDBACK ------------------------
-elif page == "📝 User Feedback":
-    st.title("📝 User Feedback")
-    with st.form("feedback_form", clear_on_submit=True):
-        user_name = st.text_input("Your Name")
-        feedback_text = st.text_area("Your Feedback")
-        fb_img = st.file_uploader("Image (optional)", type=["png","jpg","jpeg"])
-        fb_vid = st.file_uploader("Video (optional)", type=["mp4","mov"])
-        submitted = st.form_submit_button("Submit Feedback")
+elif page == "✉️ User Feedback":
+    st.header("✉️ User Feedback")
+    with st.form("feedback_form"):
+        name = st.text_input("Name")
+        email = st.text_input("Email")
+        feedback = st.text_area("Feedback")
+        submitted = st.form_submit_button("Submit")
         if submitted:
-            new_row = {"Timestamp": pd.Timestamp.now(), "User": user_name, "Feedback": feedback_text, "image":"","video":""}
-            if fb_img:
-                path = os.path.join(MEDIA_FOLDER,fb_img.name)
-                with open(path,"wb") as f: f.write(fb_img.getbuffer())
-                new_row["image"]=fb_img.name
-            if fb_vid:
-                path = os.path.join(MEDIA_FOLDER,fb_vid.name)
-                with open(path,"wb") as f: f.write(fb_vid.getbuffer())
-                new_row["video"]=fb_vid.name
-            st.session_state.df_feedback = pd.concat([st.session_state.df_feedback,pd.DataFrame([new_row])], ignore_index=True)
-            save_feedback()
-            st.success("Feedback submitted!")
+            df_feedback = df_feedback.append({"Name":name,"Email":email,"Feedback":feedback,"Date":pd.Timestamp.now()}, ignore_index=True)
+            save_feedback(df_feedback)
+            st.success("Feedback saved successfully!")
 
     st.subheader("All Feedbacks")
-    st.dataframe(st.session_state.df_feedback, use_container_width=True)
+    st.dataframe(df_feedback, use_container_width=True)
