@@ -100,6 +100,13 @@ st.set_page_config(page_title="UAT & Architecture Bug Tracker", layout="wide")
 st.title("🧪 Noether IP Status")
 
 df_main, df_arch = load_excel()
+# Ensure media columns exist
+for col in ["image", "video"]:
+    if col not in df_main.columns:
+        df_main[col] = ""
+    if col not in df_arch.columns:
+        df_arch[col] = ""
+
 df_feedback = load_feedback()
 
 page = st.sidebar.radio("Select Page", ["📊 Dashboard", "📋 UAT Issues (Editable)", "🏗️ Architecture Issues (Editable)", "✉️ User Feedback"])
