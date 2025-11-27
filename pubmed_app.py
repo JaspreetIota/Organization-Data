@@ -116,14 +116,32 @@ if page == "📊 Dashboard":
                     st.video(os.path.join(MEDIA_FOLDER, vid))
     
     # Predefined Charts
-    st.subheader("Predefined Charts")
-    if "Type" in df.columns and not df.empty:
-        fig = px.bar(df['Type'].value_counts().reset_index().rename(columns={'index':'Type','Type':'Count'}), x='Type', y='Count', title='Issues by Type')
+st.subheader("Predefined Charts")
+
+# Bar Chart: Issues by Type
+if "Type" in df.columns:
+    type_counts = df["Type"].dropna().value_counts().reset_index()
+    type_counts.columns = ["Type", "Count"]
+
+    if not type_counts.empty:
+        fig = px.bar(type_counts, x='Type', y='Count', title='Issues by Type')
         st.plotly_chart(fig, use_container_width=True)
-    if "Status" in df.columns and not df.empty:
-        fig = px.pie(df['Status'].value_counts().reset_index().rename(columns={'index':'Status','Status':'Count'}), names='Status', values='Count', title='Status Counts')
+    else:
+        st.info("No data available for 'Issues by Type' chart.")
+else:
+    st.warning("Column 'Type' not found in data!")
+
+# Pie Chart: Status (only for architecture)
+if "Status" in df.columns:
+    status_counts = df["Status"].dropna().value_counts().reset_index()
+    status_counts.columns = ["Status", "Count"]
+
+    if not status_counts.empty:
+        fig = px.pie(status_counts, names='Status', values='Count', title='Status Counts')
         st.plotly_chart(fig, use_container_width=True)
-    
+    else:
+        st.info("No data available for 'Status Counts' chart.")
+
     # Custom Charts
     st.subheader("Custom Chart")
     chart_col = st.selectbox("Select column for chart", df.columns.tolist(), key=f"{dashboard_type}_chart_col")
