@@ -132,3 +132,4 @@ wsproto==1.2.0
 xlsxwriter==3.2.0
 feedparser==6.0.10
 yahooquery
+streamlit-aggrid==0.4.14
