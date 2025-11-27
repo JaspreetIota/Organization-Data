@@ -4,6 +4,8 @@ import os
 from io import BytesIO
 import plotly.express as px
 
+st.set_page_config(page_title="UAT & Architecture Bug Tracker", layout="wide")
+
 # ------------------------ CONFIG ------------------------
 EXCEL_PATH = "uat_issues.xlsx"
 MEDIA_FOLDER = "media"
