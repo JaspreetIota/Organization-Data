@@ -54,8 +54,6 @@ if "df_feedback" not in st.session_state:
     st.session_state.df_feedback = load_feedback()
 
 # ------------------------ APP CONFIG ------------------------
-st.set_page_config(page_title="UAT & Architecture Bug Tracker", layout="wide")
-st.title("🧪 Noether IP Status")
 page = st.sidebar.radio("Select Page", ["📊 Dashboard", "📋 UAT Issues (Editable)", "🏗️ Architecture Issues (Editable)", "✉️ User Feedback"])
 
 # ------------------------ EXCEL UPLOAD ------------------------
