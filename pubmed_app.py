@@ -157,16 +157,15 @@ def editable_aggrid(df, key_prefix="uat"):
     gridOptions = gb.build()
     
     grid_response = AgGrid(
-        df,
-        gridOptions=gridOptions,
-        height=400,
-        width='100%',
-        data_return_mode=DataReturnMode.FILTERED_AND_SORTED,
-        update_mode=GridUpdateMode.MODEL_CHANGED,
-        fit_columns_on_grid_load=True,
-        enable_enterprise_modules=True,
-        allow_unsafe_jscode=True,
-        theme='light'
+    df,
+    gridOptions=gridOptions,
+    height=400,
+    width='100%',
+    data_return_mode=DataReturnMode.FILTERED_AND_SORTED,
+    update_mode=GridUpdateMode.MODEL_CHANGED,
+    fit_columns_on_grid_load=True,
+    allow_unsafe_jscode=True,
+    theme='light'
     )
     return grid_response['data']
 
