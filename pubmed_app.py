@@ -218,44 +218,45 @@ elif page == "📋 UAT Issues (Editable)":
         use_container_width=True
     )
 
+    # ---------------- MEDIA UPLOAD PER ROW ----------------
+    for idx in edited_main.index:
+        col1, col2 = st.columns(2)
+
+        with col1:
+            img_file = st.file_uploader(
+                f"Upload Image for row {idx}",
+                type=["png", "jpg", "jpeg"],
+                key=f"uat_img_{idx}"
+            )
+            if img_file:
+                img_path = os.path.join(MEDIA_FOLDER, img_file.name)
+                with open(img_path, "wb") as f:
+                    f.write(img_file.getbuffer())
+
+                existing_images = str(edited_main.at[idx, "image"]) if pd.notna(edited_main.at[idx, "image"]) else ""
+                updated_images = list(filter(None, existing_images.split("|"))) + [img_file.name]
+                edited_main.at[idx, "image"] = "|".join(sorted(set(updated_images)))
+
+        with col2:
+            vid_file = st.file_uploader(
+                f"Upload Video for row {idx}",
+                type=["mp4", "mov"],
+                key=f"uat_vid_{idx}"
+            )
+            if vid_file:
+                vid_path = os.path.join(MEDIA_FOLDER, vid_file.name)
+                with open(vid_path, "wb") as f:
+                    f.write(vid_file.getbuffer())
+
+                existing_videos = str(edited_main.at[idx, "video"]) if pd.notna(edited_main.at[idx, "video"]) else ""
+                updated_videos = list(filter(None, existing_videos.split("|"))) + [vid_file.name]
+                edited_main.at[idx, "video"] = "|".join(sorted(set(updated_videos)))
+
+    # ---------------- SAVE ----------------
     if save_clicked:
         st.session_state.df_main = edited_main
         save_excel(st.session_state.df_main, st.session_state.df_arch)
         st.success("UAT Issues saved!")
-    # Media upload per row
-for idx in edited_main.index:
-    col1, col2 = st.columns(2)
-
-    with col1:
-        img_file = st.file_uploader(
-            f"Upload Image for row {idx}", 
-            type=["png","jpg","jpeg"], 
-            key=f"uat_img_{idx}"
-        )
-        if img_file:
-            img_path = os.path.join(MEDIA_FOLDER, img_file.name)
-            with open(img_path, "wb") as f:
-                f.write(img_file.getbuffer())
-
-            existing_images = str(edited_main.at[idx, "image"]) if pd.notna(edited_main.at[idx, "image"]) else ""
-            updated_images = list(filter(None, existing_images.split("|"))) + [img_file.name]
-            edited_main.at[idx, "image"] = "|".join(sorted(set(updated_images)))
-
-    with col2:
-        vid_file = st.file_uploader(
-            f"Upload Video for row {idx}", 
-            type=["mp4","mov"], 
-            key=f"uat_vid_{idx}"
-        )
-        if vid_file:
-            vid_path = os.path.join(MEDIA_FOLDER, vid_file.name)
-            with open(vid_path, "wb") as f:
-                f.write(vid_file.getbuffer())
-
-            existing_videos = str(edited_main.at[idx, "video"]) if pd.notna(edited_main.at[idx, "video"]) else ""
-            updated_videos = list(filter(None, existing_videos.split("|"))) + [vid_file.name]
-            edited_main.at[idx, "video"] = "|".join(sorted(set(updated_videos)))
-
 
 
 # ======================================================================
@@ -273,43 +274,45 @@ elif page == "🏗️ Architecture Issues (Editable)":
         use_container_width=True
     )
 
+    # ---------------- MEDIA UPLOAD PER ROW ----------------
+    for idx in edited_arch.index:
+        col1, col2 = st.columns(2)
+
+        with col1:
+            img_file = st.file_uploader(
+                f"Upload Image for row {idx}",
+                type=["png", "jpg", "jpeg"],
+                key=f"arch_img_{idx}"
+            )
+            if img_file:
+                img_path = os.path.join(MEDIA_FOLDER, img_file.name)
+                with open(img_path, "wb") as f:
+                    f.write(img_file.getbuffer())
+
+                existing_images = str(edited_arch.at[idx, "image"]) if pd.notna(edited_arch.at[idx, "image"]) else ""
+                updated_images = list(filter(None, existing_images.split("|"))) + [img_file.name]
+                edited_arch.at[idx, "image"] = "|".join(sorted(set(updated_images)))
+
+        with col2:
+            vid_file = st.file_uploader(
+                f"Upload Video for row {idx}",
+                type=["mp4", "mov"],
+                key=f"arch_vid_{idx}"
+            )
+            if vid_file:
+                vid_path = os.path.join(MEDIA_FOLDER, vid_file.name)
+                with open(vid_path, "wb") as f:
+                    f.write(vid_file.getbuffer())
+
+                existing_videos = str(edited_arch.at[idx, "video"]) if pd.notna(edited_arch.at[idx, "video"]) else ""
+                updated_videos = list(filter(None, existing_videos.split("|"))) + [vid_file.name]
+                edited_arch.at[idx, "video"] = "|".join(sorted(set(updated_videos)))
+
+    # ---------------- SAVE BUTTON ----------------
     if save_clicked:
         st.session_state.df_arch = edited_arch
         save_excel(st.session_state.df_main, st.session_state.df_arch)
         st.success("Architecture Issues saved!")
-    # Media upload per row
-for idx in edited_arch.index:
-    col1, col2 = st.columns(2)
-
-    with col1:
-        img_file = st.file_uploader(
-            f"Upload Image for row {idx}", 
-            type=["png","jpg","jpeg"], 
-            key=f"arch_img_{idx}"
-        )
-        if img_file:
-            img_path = os.path.join(MEDIA_FOLDER, img_file.name)
-            with open(img_path, "wb") as f:
-                f.write(img_file.getbuffer())
-
-            existing_images = str(edited_arch.at[idx, "image"]) if pd.notna(edited_arch.at[idx, "image"]) else ""
-            updated_images = list(filter(None, existing_images.split("|"))) + [img_file.name]
-            edited_arch.at[idx, "image"] = "|".join(sorted(set(updated_images)))
-
-    with col2:
-        vid_file = st.file_uploader(
-            f"Upload Video for row {idx}", 
-            type=["mp4","mov"], 
-            key=f"arch_vid_{idx}"
-        )
-        if vid_file:
-            vid_path = os.path.join(MEDIA_FOLDER, vid_file.name)
-            with open(vid_path, "wb") as f:
-                f.write(vid_file.getbuffer())
-
-            existing_videos = str(edited_arch.at[idx, "video"]) if pd.notna(edited_arch.at[idx, "video"]) else ""
-            updated_videos = list(filter(None, existing_videos.split("|"))) + [vid_file.name]
-            edited_arch.at[idx, "video"] = "|".join(sorted(set(updated_videos)))
 
 
 
