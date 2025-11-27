@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import os
+import io
 from io import BytesIO
 import plotly.express as px
 
@@ -278,7 +279,7 @@ elif page == "✉️ User Feedback":
         st.success("Feedback edits saved successfully!")
 
 # Save feedback edits to in-memory Excel
-excel_buffer = BytesIO()
+excel_buffer = io.BytesIO()
 edited_feedback.to_excel(excel_buffer, index=False)
 excel_buffer.seek(0)
 
