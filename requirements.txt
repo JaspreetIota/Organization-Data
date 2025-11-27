@@ -132,4 +132,5 @@ wsproto==1.2.0
 xlsxwriter==3.2.0
 feedparser==6.0.10
 yahooquery
-pip install streamlit-aggrid==1.2.1
+streamlit-aggrid==1.2.1
+
