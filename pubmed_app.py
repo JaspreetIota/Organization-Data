@@ -278,7 +278,7 @@ elif page == "✉️ User Feedback":
         st.success("Feedback edits saved successfully!")
 
 # Save feedback edits to in-memory Excel
-excel_buffer = io.BytesIO()
+excel_buffer = BytesIO()
 edited_feedback.to_excel(excel_buffer, index=False)
 excel_buffer.seek(0)
 
