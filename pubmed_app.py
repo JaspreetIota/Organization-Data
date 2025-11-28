@@ -1,11 +1,10 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
 import json
 from streamlit_echarts import st_echarts
 
 st.set_page_config(layout="wide")
-st.title("Multi-Chart Dashboard (Streamlit Cloud Compatible)")
+st.title("Flexible Multi-Chart Dashboard (Cloud Compatible)")
 
 # ---------------------------
 # Upload Excel
@@ -29,7 +28,7 @@ if uploaded_file:
         dashboards = {}
 
     if st.button("Save Dashboard"):
-        dashboards[dashboard_name] = []  # will store chart configs
+        dashboards[dashboard_name] = []  # Will store chart configs
         with open("dashboards.json", "w") as f:
             json.dump(dashboards, f)
         st.success(f"Dashboard '{dashboard_name}' saved!")
@@ -46,40 +45,35 @@ if uploaded_file:
     st.subheader("Add Chart")
     columns = df.columns.tolist()
     x_axis = st.selectbox("X-axis Column", options=columns, key="x_col")
-    y_axis = st.selectbox(
-        "Y-axis Column (or text for counts)",
-        options=columns,
-        key="y_col"
+    chart_type = st.selectbox(
+        "Chart Type",
+        ["Bar", "Line", "Pie", "Scatter", "Area", "Funnel", "Radar"],
+        key="chart_type"
     )
-    chart_type = st.selectbox("Chart Type", ["Bar", "Line", "Pie"], key="chart_type")
-    
-    # Prepare data
-    if chart_type in ["Bar", "Line"]:
-        try:
-            y_data = pd.to_numeric(df[y_axis], errors='coerce').fillna(0).tolist()
-        except:
-            # If text column, count occurrences
-            y_data = df.groupby(x_axis)[y_axis].count().tolist()
-            x_axis = df.groupby(x_axis)[y_axis].count().index.tolist()
-    else:  # Pie chart
-        counts = df.groupby(x_axis)[y_axis].count()
-        x_axis = counts.index.tolist()
-        y_data = counts.values.tolist()
 
-    # Build chart options
+    # ---------------------------
+    # Prepare data (Y-axis is always count)
+    # ---------------------------
+    counts = df[x_axis].value_counts()
+    x_data = counts.index.tolist()
+    y_data = counts.values.tolist()
+
+    # ---------------------------
+    # Build chart options dynamically
+    # ---------------------------
     if chart_type == "Bar":
         options = {
             "tooltip": {"trigger": "axis"},
-            "xAxis": {"type": "category", "data": x_axis},
+            "xAxis": {"type": "category", "data": x_data},
             "yAxis": {"type": "value"},
             "series": [{"data": y_data, "type": "bar"}]
         }
     elif chart_type == "Line":
         options = {
             "tooltip": {"trigger": "axis"},
-            "xAxis": {"type": "category", "data": x_axis},
+            "xAxis": {"type": "category", "data": x_data},
             "yAxis": {"type": "value"},
-            "series": [{"data": y_data, "type": "line"}]
+            "series": [{"data": y_data, "type": "line", "smooth": True}]
         }
     elif chart_type == "Pie":
         options = {
@@ -87,14 +81,41 @@ if uploaded_file:
             "series": [{
                 "type": "pie",
                 "radius": "60%",
-                "data": [{"value": v, "name": str(n)} for n, v in zip(x_axis, y_data)]
+                "data": [{"value": v, "name": str(n)} for n, v in zip(x_data, y_data)]
             }]
+        }
+    elif chart_type == "Scatter":
+        options = {
+            "xAxis": {"type": "category", "data": x_data},
+            "yAxis": {"type": "value"},
+            "series": [{"data": [[x_data[i], y_data[i]] for i in range(len(x_data))], "type": "scatter"}]
+        }
+    elif chart_type == "Area":
+        options = {
+            "tooltip": {"trigger": "axis"},
+            "xAxis": {"type": "category", "data": x_data},
+            "yAxis": {"type": "value"},
+            "series": [{"data": y_data, "type": "line", "areaStyle": {}}]
+        }
+    elif chart_type == "Funnel":
+        options = {
+            "tooltip": {"trigger": "item"},
+            "series": [{"type": "funnel", "data": [{"value": v, "name": str(n)} for n, v in zip(x_data, y_data)]}]
+        }
+    elif chart_type == "Radar":
+        options = {
+            "tooltip": {},
+            "radar": {
+                "indicator": [{"name": str(n), "max": max(y_data) + 5} for n in x_data]
+            },
+            "series": [{"type": "radar", "data": [{"value": y_data, "name": "Count"}]}]
         }
 
     # ---------------------------
     # Layout multiple charts
     # ---------------------------
-    num_charts = st.number_input("Number of charts per row", min_value=1, max_value=4, value=2)
+    num_charts = st.number_input("Charts per row", min_value=1, max_value=4, value=2)
     cols = st.columns(num_charts)
-    with cols[0]:
-        st_echarts(options=options, height="400px")
+    for i, col in enumerate(cols):
+        with col:
+            st_echarts(options=options, height="400px")
