@@ -84,7 +84,6 @@ if uploaded:
                     y_list = df[chart["y_axis"]].replace([np.nan, np.inf, -np.inf], None).tolist()
                     x_list = x_data.tolist()
                 else:
-                    # Count occurrences for non-numeric Y-axis
                     counted = df[chart["y_axis"]].astype(str).value_counts().reset_index()
                     counted.columns = [chart["y_axis"], "count"]
                     x_list = counted[chart["y_axis"]].tolist()
@@ -93,27 +92,27 @@ if uploaded:
             # --- Build chart options ---
             options = {}
             if chart["type"] == "Bar":
-                options = {"tooltip": {"trigger": "axis"}, "xAxis": {"type": "category", "data": x_list}, "yAxis": {"type": "value"}, "series": [{"data": y_list, "type": "bar"}]}
+                options = {"tooltip":{"trigger":"axis"}, "xAxis":{"type":"category","data":x_list}, "yAxis":{"type":"value"}, "series":[{"data":y_list,"type":"bar"}]}
             elif chart["type"] == "Stacked Bar":
-                options = {"tooltip": {"trigger": "axis"}, "xAxis": {"type": "category", "data": x_list}, "yAxis": {"type": "value"}, "series": [{"data": y_list, "type": "bar", "stack": "total"}]}
+                options = {"tooltip":{"trigger":"axis"}, "xAxis":{"type":"category","data":x_list}, "yAxis":{"type":"value"}, "series":[{"data":y_list,"type":"bar","stack":"total"}]}
             elif chart["type"] == "Horizontal Bar":
-                options = {"tooltip": {"trigger": "axis"}, "xAxis": {"type": "value"}, "yAxis": {"type": "category", "data": x_list}, "series": [{"data": y_list, "type": "bar"}]}
+                options = {"tooltip":{"trigger":"axis"}, "xAxis":{"type":"value"}, "yAxis":{"type":"category","data":x_list}, "series":[{"data":y_list,"type":"bar"}]}
             elif chart["type"] == "Line":
-                options = {"tooltip": {"trigger": "axis"}, "xAxis": {"type": "category", "data": x_list}, "yAxis": {"type": "value"}, "series": [{"data": y_list, "type": "line"}]}
+                options = {"tooltip":{"trigger":"axis"}, "xAxis":{"type":"category","data":x_list}, "yAxis":{"type":"value"}, "series":[{"data":y_list,"type":"line"}]}
             elif chart["type"] == "Area":
-                options = {"tooltip": {"trigger": "axis"}, "xAxis": {"type": "category", "data": x_list}, "yAxis": {"type": "value"}, "series": [{"data": y_list, "type": "line", "areaStyle": {}}]}
+                options = {"tooltip":{"trigger":"axis"}, "xAxis":{"type":"category","data":x_list}, "yAxis":{"type":"value"}, "series":[{"data":y_list,"type":"line","areaStyle":{}}]}
             elif chart["type"] == "Stacked Area":
-                options = {"tooltip": {"trigger": "axis"}, "xAxis": {"type": "category", "data": x_list}, "yAxis": {"type": "value"}, "series": [{"data": y_list, "type": "line", "areaStyle": {}, "stack": "total"}]}
+                options = {"tooltip":{"trigger":"axis"}, "xAxis":{"type":"category","data":x_list}, "yAxis":{"type":"value"}, "series":[{"data":y_list,"type":"line","areaStyle":{},"stack":"total"}]}
             elif chart["type"] == "Pie":
-                options = {"tooltip": {"trigger": "item"}, "series": [{"type": "pie", "radius": "60%", "data": [{"value": v, "name": n} for n, v in zip(x_list, y_list)]}]}
+                options = {"tooltip":{"trigger":"item"}, "series":[{"type":"pie","radius":"60%","data":[{"value":v,"name":n} for n,v in zip(x_list,y_list)]}]}
             elif chart["type"] == "Donut":
-                options = {"tooltip": {"trigger": "item"}, "series": [{"type": "pie", "radius": ["40%", "70%"], "data": [{"value": v, "name": n} for n, v in zip(x_list, y_list)]}]}
+                options = {"tooltip":{"trigger":"item"}, "series":[{"type":"pie","radius":["40%","70%"],"data":[{"value":v,"name":n} for n,v in zip(x_list,y_list)]}]}
             elif chart["type"] == "Scatter":
-                options = {"xAxis": {"type": "category", "data": x_list}, "yAxis": {"type": "value"}, "series": [{"data": [[x_list[i], y_list[i]] for i in range(len(x_list))], "type": "scatter"}]}
+                options = {"xAxis":{"type":"category","data":x_list}, "yAxis":{"type":"value"}, "series":[{"data":[[x_list[i], y_list[i]] for i in range(len(x_list))],"type":"scatter"}]}
             elif chart["type"] == "Radar":
-                options = {"tooltip": {}, "radar": {"indicator": [{"name": str(n), "max": max(y_list) + 5} for n in x_list]}, "series": [{"type": "radar", "data": [{"value": y_list, "name": "Count"}]}]}
+                options = {"tooltip":{}, "radar":{"indicator":[{"name":str(n),"max":max(y_list)+5} for n in x_list]}, "series":[{"type":"radar","data":[{"value":y_list,"name":"Count"}]}]}
             elif chart["type"] == "Funnel":
-                options = {"tooltip": {"trigger": "item"}, "series": [{"type": "funnel", "data": [{"value": v, "name": n} for n, v in zip(x_list, y_list)]}]}
-            # Add more types (Gauge, Treemap, Word Cloud) as needed with ECharts options
+                options = {"tooltip":{"trigger":"item"}, "series":[{"type":"funnel","data":[{"value":v,"name":n} for n,v in zip(x_list,y_list)]}]}
+            # You can add Gauge, Treemap, Word Cloud options if needed
 
             st_echarts(options=options, height=chart["height"])
