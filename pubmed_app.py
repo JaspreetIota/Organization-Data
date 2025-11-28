@@ -50,7 +50,7 @@ if uploaded_file:
         st.session_state.dashboard = []
 
     # Load dashboard into session state
-    if dashboard_name not in st.session_state:
+    if "dashboard" not in st.session_state:
         st.session_state.dashboard = dashboards.get(dashboard_name, [])
 
     if st.sidebar.button("Save Dashboard"):
@@ -95,7 +95,7 @@ if uploaded_file:
     st.subheader("Your Dashboard")
 
     # ---------------------------
-    # Render all charts
+    # Render all charts safely
     # ---------------------------
     charts_per_row = st.number_input("Charts per row", min_value=1, max_value=4, value=2)
 
@@ -107,6 +107,11 @@ if uploaded_file:
                 if st.button(f"Delete Chart {i+j+1}"):
                     st.session_state.dashboard.pop(i+j)
                     st.experimental_rerun()
+
+                # Skip chart if columns are missing
+                if chart["x_axis"] not in df.columns or (chart["y_axis"] not in df.columns and chart["y_axis"] != "<count>"):
+                    st.error(f"Chart columns no longer exist: X='{chart['x_axis']}', Y='{chart['y_axis']}'")
+                    continue
 
                 # Prepare chart data
                 x_data = df[chart["x_axis"]].astype(str)
@@ -149,5 +154,11 @@ if uploaded_file:
                     options = {"tooltip":{}, "radar":{"indicator":[{"name":str(n),"max":max(y_list)+5} for n in x_list]}, "series":[{"type":"radar","data":[{"value":y_list,"name":"Count"}]}]}
                 elif chart["type"] == "Funnel":
                     options = {"tooltip":{"trigger":"item"}, "series":[{"type":"funnel","data":[{"value":v,"name":n} for n,v in zip(x_list,y_list)]}]}
+                elif chart["type"] == "Gauge":
+                    options = {"series":[{"type":"gauge","detail":{"formatter":"{value}"},"data":[{"value":sum(y_list),"name":"Total"}]}]}
+                elif chart["type"] == "Treemap":
+                    options = {"series":[{"type":"treemap","data":[{"name":str(n),"value":v} for n,v in zip(x_list,y_list)]}]}
+                elif chart["type"] == "Word Cloud":
+                    options = {"series":[{"type":"wordCloud","data":[{"name":str(n),"value":v} for n,v in zip(x_list,y_list)]}]}
 
                 st_echarts(options=options, height=chart["height"])
