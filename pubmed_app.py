@@ -12,7 +12,7 @@ import random
 import time
 
 # -------------------------
-# GLOBAL CACHE & SETTINGS
+# GLOBAL SETTINGS
 # -------------------------
 CACHE = {}
 HEADERS = {"User-Agent": "Free-Company-Intelligence/1.0"}
@@ -28,7 +28,7 @@ def normalize_name(name):
     return re.sub(r"\s+", " ", name).strip().title()
 
 def run_async(coro):
-    """Safe async runner for Streamlit/Jupyter"""
+    """Safe async runner for Streamlit"""
     try:
         loop = asyncio.get_running_loop()
     except RuntimeError:
@@ -49,14 +49,17 @@ async def fetch_with_retry(session, url, params=None, headers=None):
                         await asyncio.sleep(wait)
                         continue
                     r.raise_for_status()
-                    return await r.json()
+                    try:
+                        return await r.json()
+                    except:
+                        return await r.text()
             except:
                 wait = 2 ** attempt + random.random()
                 await asyncio.sleep(wait)
     return {}
 
 # -------------------------
-# OPEN CORPORATES + MCA
+# OPEN CORPORATES
 # -------------------------
 async def fetch_opencorporates(session, name):
     key = f"oc:{name}"
@@ -64,7 +67,7 @@ async def fetch_opencorporates(session, name):
         return CACHE[key]
     url = "https://api.opencorporates.com/v0.4/companies/search"
     resp = await fetch_with_retry(session, url, params={"q": name})
-    companies = resp.get("results", {}).get("companies", []) if resp else []
+    companies = resp.get("results", {}).get("companies", []) if isinstance(resp, dict) else []
     if not companies:
         return {}
     c = companies[0]["company"]
@@ -137,8 +140,7 @@ async def fetch_wikipedia(session, name):
     resp = await fetch_with_retry(session, url)
     result = {}
     if resp:
-        text = resp.get("text", "")
-        soup = BeautifulSoup(text, "html.parser")
+        soup = BeautifulSoup(resp if isinstance(resp, str) else "", "html.parser")
         infobox = soup.select_one(".infobox")
         if infobox:
             for row in infobox.select("tr"):
@@ -155,7 +157,7 @@ async def fetch_wikipedia(session, name):
     return result
 
 # -------------------------
-# YAHOO FINANCE with Retry
+# YAHOO FINANCE (Optional / Batched)
 # -------------------------
 def fetch_yfinance(name, retries=5):
     key = f"yf:{name}"
@@ -173,11 +175,11 @@ def fetch_yfinance(name, retries=5):
                 "is_public": i.get("quoteType") == "EQUITY"
             }
             CACHE[key] = result
+            time.sleep(random.uniform(1,2))  # small delay to reduce 429
             return result
         except:
-            wait = 2 ** attempt + random.random()
-            time.sleep(wait)
-    return {}  # fallback
+            time.sleep(2 ** attempt + random.random())
+    return {}
 
 # -------------------------
 # GAP-FILL MERGE
@@ -191,22 +193,23 @@ def merge(base, incoming):
 # -------------------------
 # ENRICH COMPANY
 # -------------------------
-async def enrich_company(name):
-    await asyncio.sleep(random.uniform(0.1,0.3))  # small delay
+async def enrich_company(name, fetch_yf=False):
+    await asyncio.sleep(random.uniform(0.05,0.2))
     name = normalize_name(name)
     result = {"company_name": name}
     async with aiohttp.ClientSession() as session:
         result = merge(result, await fetch_opencorporates(session, name))
         result = merge(result, fetch_wikidata(name))
         result = merge(result, await fetch_wikipedia(session, name))
-        result = merge(result, fetch_yfinance(name))
+        if fetch_yf:
+            result = merge(result, fetch_yfinance(name))
     return result
 
-async def enrich_all(companies, batch_size=20):
+async def enrich_all(companies, batch_size=20, fetch_yf=False):
     enriched = []
     for i in range(0, len(companies), batch_size):
         batch = companies[i:i+batch_size]
-        enriched.extend(await asyncio.gather(*(enrich_company(c) for c in batch)))
+        enriched.extend(await asyncio.gather(*(enrich_company(c, fetch_yf) for c in batch)))
     return enriched
 
 # -------------------------
@@ -217,35 +220,38 @@ def build_competitor_map(df, top_n=5):
     df["country"] = df.get("country", "")
     df["profile"] = (df["industry"] + " " + df["country"]).str.strip()
     df_nonempty = df[df["profile"] != ""]
-
     if df_nonempty.empty:
         return {name: [] for name in df["company_name"]}
-
     tfidf = TfidfVectorizer(stop_words="english")
     matrix = tfidf.fit_transform(df_nonempty["profile"])
     similarity = cosine_similarity(matrix)
-
     competitor_map = {}
     for idx, name in enumerate(df_nonempty["company_name"]):
         scores = sorted(list(enumerate(similarity[idx])), key=lambda x: x[1], reverse=True)[1:top_n+1]
         competitor_map[name] = [df_nonempty.iloc[j]["company_name"] for j, _ in scores]
-
     for name in df["company_name"]:
         if name not in competitor_map:
             competitor_map[name] = []
     return competitor_map
 
 # -------------------------
-# EXCEL EXPORT
+# EXCEL EXPORT (Safe)
 # -------------------------
 def export_to_excel(data, filename="company_intelligence.xlsx"):
     df = pd.DataFrame(data)
+    required_columns = ["company_name","website","founding_year","headquarters",
+                        "company_type","jurisdiction","is_public",
+                        "cin","company_status","incorporation_date","registry_url",
+                        "annual_revenue","market_cap","industry","country"]
+    for col in required_columns:
+        if col not in df.columns:
+            df[col] = None
     with pd.ExcelWriter(filename, engine="openpyxl") as writer:
-        df[["company_name","website","founding_year","headquarters","company_type","jurisdiction","is_public"]].to_excel(writer, "Companies_Master", index=False)
+        df[["company_name","website","founding_year","headquarters",
+            "company_type","jurisdiction","is_public"]].to_excel(writer, "Companies_Master", index=False)
         df[["company_name","cin","company_status","incorporation_date","registry_url"]].to_excel(writer, "India_MCA_Legal", index=False)
         df[["company_name","annual_revenue","market_cap"]].to_excel(writer, "Financials_Public", index=False)
         df[["company_name","industry","country"]].to_excel(writer, "Market_Info", index=False)
-        df.notnull().groupby(df["company_name"]).sum().to_excel(writer, "Data_Coverage")
     st.success(f"✅ Excel exported: {filename}")
 
 # -------------------------
@@ -271,9 +277,11 @@ if manual_input:
 
 company_names = list(set(company_names))
 
+fetch_yf_option = st.checkbox("Fetch Yahoo Finance data (may be slow / limited)", value=False)
+
 if st.button("Enrich Companies") and company_names:
     with st.spinner("⏳ Fetching company data..."):
-        data_future = run_async(enrich_all(company_names))
+        data_future = run_async(enrich_all(company_names, fetch_yf=fetch_yf_option))
         if asyncio.isfuture(data_future):
             data = asyncio.get_event_loop().run_until_complete(data_future)
         else:
