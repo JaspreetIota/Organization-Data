@@ -8,12 +8,15 @@ from bs4 import BeautifulSoup
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 import re
+import random
 
 # -------------------------
 # GLOBAL CACHE
 # -------------------------
 CACHE = {}
 HEADERS = {"User-Agent": "Free-Company-Intelligence/1.0"}
+SEMAPHORE = asyncio.Semaphore(5)  # Limit concurrent requests
+MAX_RETRIES = 5
 
 # -------------------------
 # HELPER FUNCTIONS
@@ -35,8 +38,25 @@ def run_async(coro):
     else:
         return asyncio.run(coro)
 
+async def fetch_with_retry(session, url, params=None, headers=None):
+    """Async GET with retries and backoff"""
+    for attempt in range(1, MAX_RETRIES + 1):
+        async with SEMAPHORE:
+            try:
+                async with session.get(url, params=params, headers=headers, timeout=20) as r:
+                    if r.status == 429:
+                        wait = 2 ** attempt + random.random()
+                        await asyncio.sleep(wait)
+                        continue
+                    r.raise_for_status()
+                    return await r.json()
+            except Exception as e:
+                if attempt == MAX_RETRIES:
+                    return {}
+                await asyncio.sleep(2 ** attempt + random.random())
+
 # -------------------------
-# OPEN CORPORATES + MCA (FREE)
+# OPEN CORPORATES + MCA
 # -------------------------
 async def fetch_opencorporates(session, name):
     key = f"oc:{name}"
@@ -44,21 +64,21 @@ async def fetch_opencorporates(session, name):
         return CACHE[key]
     url = "https://api.opencorporates.com/v0.4/companies/search"
     try:
-        async with session.get(url, params={"q": name}, timeout=15) as r:
-            companies = (await r.json()).get("results", {}).get("companies", [])
-            if not companies:
-                return {}
-            c = companies[0]["company"]
-            result = {
-                "company_type": c.get("company_type"),
-                "jurisdiction": c.get("jurisdiction_code"),
-                "incorporation_date": c.get("incorporation_date"),
-                "company_status": c.get("current_status"),
-                "cin": c.get("company_number"),
-                "registry_url": c.get("registry_url")
-            }
-            CACHE[key] = result
-            return result
+        resp = await fetch_with_retry(session, url, params={"q": name})
+        companies = resp.get("results", {}).get("companies", [])
+        if not companies:
+            return {}
+        c = companies[0]["company"]
+        result = {
+            "company_type": c.get("company_type"),
+            "jurisdiction": c.get("jurisdiction_code"),
+            "incorporation_date": c.get("incorporation_date"),
+            "company_status": c.get("current_status"),
+            "cin": c.get("company_number"),
+            "registry_url": c.get("registry_url")
+        }
+        CACHE[key] = result
+        return result
     except:
         return {}
 
@@ -82,19 +102,15 @@ def fetch_wikidata(name):
             headers=HEADERS,
             timeout=10
         ).json()
-
         if not search.get("search"):
             return {}
-
         entity_id = search["search"][0]["id"]
         entity = requests.get(
             f"https://www.wikidata.org/wiki/Special:EntityData/{entity_id}.json",
             headers=HEADERS,
             timeout=10
         ).json()
-
         claims = entity["entities"][entity_id]["claims"]
-
         def claim(pid):
             try:
                 val = claims[pid][0]["mainsnak"]["datavalue"]["value"]
@@ -103,7 +119,6 @@ def fetch_wikidata(name):
                 return val
             except:
                 return None
-
         result = {
             "website": claim("P856"),
             "founding_year": claim("P571"),
@@ -123,12 +138,11 @@ async def fetch_wikipedia(session, name):
         return CACHE[key]
     url = f"https://en.wikipedia.org/wiki/{name.replace(' ', '_')}"
     try:
-        async with session.get(url, headers=HEADERS, timeout=15) as r:
-            if r.status != 200:
-                return {}
-            soup = BeautifulSoup(await r.text(), "html.parser")
+        resp = await fetch_with_retry(session, url)
+        soup = BeautifulSoup(resp.get("text", ""), "html.parser") if resp else None
+        result = {}
+        if soup:
             infobox = soup.select_one(".infobox")
-            result = {}
             if infobox:
                 for row in infobox.select("tr"):
                     h, d = row.find("th"), row.find("td")
@@ -140,8 +154,8 @@ async def fetch_wikipedia(session, name):
                             result["founding_year"] = yrs[0]
                     if "Headquarters" in h.text:
                         result["headquarters"] = d.text.strip()
-            CACHE[key] = result
-            return result
+        CACHE[key] = result
+        return result
     except:
         return {}
 
@@ -168,7 +182,7 @@ def fetch_yfinance(name):
         return {}
 
 # -------------------------
-# MERGE GAP-FILL
+# GAP-FILL MERGE
 # -------------------------
 def merge(base, incoming):
     for k, v in incoming.items():
@@ -177,9 +191,10 @@ def merge(base, incoming):
     return base
 
 # -------------------------
-# COMPANY ENRICHMENT
+# ENRICH COMPANY
 # -------------------------
 async def enrich_company(name):
+    await asyncio.sleep(random.uniform(0.1,0.5))  # small delay between companies
     name = normalize_name(name)
     result = {"company_name": name}
     async with aiohttp.ClientSession() as session:
